@@ -34,3 +34,7 @@ Thumbs.db
 *.njsproj
 *.sln
 *.sw?
+
+# 敏感词词库与临时克隆目录
+server/sensitive_words.txt
+server/temp_lexicon/

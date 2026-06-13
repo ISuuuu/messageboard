@@ -2,15 +2,34 @@ import fs from 'fs';
 import path from 'path';
 import { AuditProvider, AuditResult } from './AuditProvider';
 
+interface TrieNode {
+  isEnd?: boolean;
+  children: Record<string, TrieNode>;
+}
+
 export class LocalAuditProvider implements AuditProvider {
+  private root: TrieNode = { children: {} };
   private sensitiveWords: string[] = [];
 
   constructor() {
     this.loadSensitiveWords();
   }
 
-  // 读取并解析本地文本词库文件
+  // 向 Trie 树中插入敏感词
+  private insertWord(word: string) {
+    let node = this.root;
+    for (const char of word) {
+      if (!node.children[char]) {
+        node.children[char] = { children: {} };
+      }
+      node = node.children[char];
+    }
+    node.isEnd = true;
+  }
+
+  // 读取并解析本地文本词库文件并构建 Trie 树
   private loadSensitiveWords() {
+    this.root = { children: {} }; // 重置 Trie 树
     try {
       const filePath = path.resolve(__dirname, '../../sensitive_words.txt');
       if (fs.existsSync(filePath)) {
@@ -18,7 +37,7 @@ export class LocalAuditProvider implements AuditProvider {
         this.sensitiveWords = content
           .split(/\r?\n/)
           .map(word => word.trim())
-          .filter(word => word.length > 0 && !word.startsWith('#'));
+          .filter(word => word.length > 0 && !word.startsWith('#') && !word.startsWith('//') && !word.startsWith(';'));
         console.log(`[LocalAudit] 成功加载 ${this.sensitiveWords.length} 个本地过滤词`);
       } else {
         // Fallback 默认防护，防止文件缺失导致拦截失效
@@ -29,63 +48,83 @@ export class LocalAuditProvider implements AuditProvider {
       console.error('[LocalAudit] 加载敏感词库异常:', error.message || error);
       this.sensitiveWords = ['垃圾', '广告', '发票', '违禁词', '敏感词', '测试垃圾信息', '你妈的'];
     }
+
+    // 构建 Trie 树
+    for (const word of this.sensitiveWords) {
+      this.insertWord(word);
+    }
+  }
+
+  /**
+   * 使用 DFA 算法进行文本匹配和脱敏
+   * @param text 输入文本
+   * @returns matchedWords 匹配到的敏感词列表, filteredText 脱敏替换后的文本
+   */
+  private filterText(text: string): { matchedWords: string[]; filteredText: string } {
+    const matchedWords = new Set<string>();
+    const chars = Array.from(text);
+    const result: string[] = [...chars];
+
+    for (let i = 0; i < chars.length; i++) {
+      let node = this.root;
+      let matchLength = 0;
+      let tempMatchLength = 0;
+
+      for (let j = i; j < chars.length; j++) {
+        const char = chars[j];
+        if (node.children[char]) {
+          node = node.children[char];
+          tempMatchLength++;
+          if (node.isEnd) {
+            matchLength = tempMatchLength;
+          }
+        } else {
+          break;
+        }
+      }
+
+      // 匹配到最长敏感词
+      if (matchLength > 0) {
+        const matchedWord = text.substring(i, i + matchLength);
+        matchedWords.add(matchedWord);
+        
+        // 执行脱敏替换：将第一个字符位置替换为 '***'，后续匹配字符替换为空字符串，合并后即为单个 '***'
+        result[i] = '***';
+        for (let k = i + 1; k < i + matchLength; k++) {
+          result[k] = '';
+        }
+        
+        // 跳过被匹配的部分，防止重复计算
+        i += matchLength - 1;
+      }
+    }
+
+    return {
+      matchedWords: Array.from(matchedWords),
+      filteredText: result.join('')
+    };
   }
 
   async audit(content: string, nickname?: string): Promise<AuditResult> {
-    const matchedContentWords: string[] = [];
-    const matchedNicknameWords: string[] = [];
-    
-    // 对内容进行敏感词检测
-    for (const word of this.sensitiveWords) {
-      if (content.includes(word)) {
-        matchedContentWords.push(word);
-      }
-    }
-
-    // 对昵称进行敏感词检测
     const nameStr = nickname || '匿名';
-    for (const word of this.sensitiveWords) {
-      if (nameStr.includes(word)) {
-        matchedNicknameWords.push(word);
-      }
-    }
 
-    const contentMatched = matchedContentWords.length > 0;
-    const nicknameMatched = matchedNicknameWords.length > 0;
+    const contentRes = this.filterText(content);
+    const nicknameRes = this.filterText(nameStr);
+
+    const contentMatched = contentRes.matchedWords.length > 0;
+    const nicknameMatched = nicknameRes.matchedWords.length > 0;
 
     if (contentMatched || nicknameMatched) {
-      let filteredContent = content;
-      let filteredNickname = nameStr;
-
-      // 替换内容的敏感词
-      if (contentMatched) {
-        // 按长度从长到短匹配替换
-        const uniqueContentWords = Array.from(new Set(matchedContentWords));
-        uniqueContentWords.sort((a, b) => b.length - a.length);
-        uniqueContentWords.forEach(word => {
-          filteredContent = filteredContent.split(word).join('***');
-        });
-      }
-
-      // 替换昵称的敏感词
-      if (nicknameMatched) {
-        const uniqueNicknameWords = Array.from(new Set(matchedNicknameWords));
-        uniqueNicknameWords.sort((a, b) => b.length - a.length);
-        uniqueNicknameWords.forEach(word => {
-          filteredNickname = filteredNickname.split(word).join('***');
-        });
-      }
-
       const reasons: string[] = [];
-      if (contentMatched) reasons.push(`内容敏感词: [${matchedContentWords.join(', ')}]`);
-      if (nicknameMatched) reasons.push(`昵称敏感词: [${matchedNicknameWords.join(', ')}]`);
+      if (contentMatched) reasons.push(`内容敏感词: [${contentRes.matchedWords.join(', ')}]`);
+      if (nicknameMatched) reasons.push(`昵称敏感词: [${nicknameRes.matchedWords.join(', ')}]`);
 
       return {
         passed: false,
         reason: reasons.join('; '),
-        filteredContent,
-        filteredNickname,
-        filteredText: filteredContent // 向下兼容旧字段
+        filteredContent: contentRes.filteredText,
+        filteredNickname: nicknameRes.filteredText,
+        filteredText: contentRes.filteredText // 向下兼容旧字段
       };
     }
 
