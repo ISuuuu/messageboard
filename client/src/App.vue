@@ -480,8 +480,16 @@ body {
 
 /* 移动端适配调优 */
 @media (max-width: 768px) {
+  .app-container {
+    padding: 15px 5px;
+  }
   .app-header {
-    left: 20px;
+    left: 5px;
+    top: 15px;
+  }
+  .write-btn {
+    right: 5px;
+    top: 15px;
   }
 }
 
