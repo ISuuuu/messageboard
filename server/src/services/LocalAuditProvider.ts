@@ -31,18 +31,33 @@ export class LocalAuditProvider implements AuditProvider {
   private loadSensitiveWords() {
     this.root = { children: {} }; // 重置 Trie 树
     try {
-      const filePath = path.resolve(__dirname, '../../sensitive_words.txt');
-      if (fs.existsSync(filePath)) {
+      // 自适应寻路：兼容 ts-node 本地运行、dist 编译目录运行、以及打包成单体文件运行等各种部署场景
+      const possiblePaths = [
+        path.resolve(__dirname, '../../sensitive_words.txt'), // 源码开发路径: src/services/ -> server/
+        path.resolve(__dirname, '../sensitive_words.txt'),    // 编译或打包路径: dist/services/ 或 dist/ -> server/
+        path.resolve(process.cwd(), 'sensitive_words.txt'),   // 在 server 目录下直接启动: cwd -> server/
+        path.resolve(process.cwd(), 'server/sensitive_words.txt'), // 在项目根目录下启动: cwd -> server/
+      ];
+
+      let filePath = '';
+      for (const p of possiblePaths) {
+        if (fs.existsSync(p)) {
+          filePath = p;
+          break;
+        }
+      }
+
+      if (filePath) {
         const content = fs.readFileSync(filePath, 'utf-8');
         this.sensitiveWords = content
           .split(/\r?\n/)
           .map(word => word.trim())
           .filter(word => word.length > 0 && !word.startsWith('#') && !word.startsWith('//') && !word.startsWith(';'));
-        console.log(`[LocalAudit] 成功加载 ${this.sensitiveWords.length} 个本地过滤词`);
+        console.log(`[LocalAudit] 成功自适应加载词库: ${filePath} (共 ${this.sensitiveWords.length} 个过滤词)`);
       } else {
         // Fallback 默认防护，防止文件缺失导致拦截失效
         this.sensitiveWords = ['垃圾', '广告', '发票', '违禁词', '敏感词', '测试垃圾信息', '你妈的'];
-        console.warn('[LocalAudit] 未找到 sensitive_words.txt，已降级为内置基础词库');
+        console.warn(`[LocalAudit] 未找到 sensitive_words.txt，已降级为内置基础词库。尝试过的路径:`, possiblePaths);
       }
     } catch (error: any) {
       console.error('[LocalAudit] 加载敏感词库异常:', error.message || error);
