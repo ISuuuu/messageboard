@@ -198,11 +198,8 @@ export class BaiduAuditProvider implements AuditProvider {
       }
     } catch (error: any) {
       console.error('百度文本审核服务请求异常:', error.message || error);
-      // 如果发生网络或配置错误，建议 Fallback 为本地简单词库，不直接挂掉
-      return {
-        passed: false,
-        reason: `文本审核接口调用失败 (${error.message || '网络异常'})`
-      };
+      // 抛出错误以触发 AuditManager 的本地降级过滤机制，保证在云服务异常时留言板依然能使用本地词库脱敏放行
+      throw new Error(`百度云文本审核接口调用失败 (${error.message || '网络异常'})`);
     }
   }
 }

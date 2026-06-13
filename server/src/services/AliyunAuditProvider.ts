@@ -136,10 +136,8 @@ export class AliyunAuditProvider implements AuditProvider {
     } catch (error: any) {
       console.error('阿里云自签名文本审核请求异常:', error.response?.data || error.message || error);
       const errMsg = error.response?.data?.Message || error.message || '未知错误';
-      return {
-        passed: false,
-        reason: `阿里云审核服务异常 (${errMsg})`
-      };
+      // 抛出错误以触发 AuditManager 的本地降级机制
+      throw new Error(`阿里云审核服务调用失败 (${errMsg})`);
     }
   }
 }
