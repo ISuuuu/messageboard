@@ -39,7 +39,7 @@
 
 <script setup lang="ts">
 interface Message {
-  id?: number;
+  id?: string | number;
   content: string;
   nickname: string;
   color: string;
@@ -110,13 +110,13 @@ const formatFullTime = (timeStr: string) => {
 .modal-content {
   position: relative;
   width: 100%;
-  max-width: 500px;
+  max-width: 420px;
   background: rgba(16, 22, 42, 0.75);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 24px;
+  border-radius: 20px;
   backdrop-filter: blur(30px);
   -webkit-backdrop-filter: blur(30px);
-  padding: 35px;
+  padding: 24px;
   overflow: hidden;
 }
 
@@ -134,8 +134,8 @@ const formatFullTime = (timeStr: string) => {
 
 .close-btn {
   position: absolute;
-  top: 25px;
-  right: 25px;
+  top: 20px;
+  right: 20px;
   background: none;
   border: none;
   color: #64748b;
@@ -154,12 +154,12 @@ const formatFullTime = (timeStr: string) => {
 .modal-body {
   display: flex;
   flex-direction: column;
-  gap: 25px;
+  gap: 16px;
   text-align: left;
 }
 
 .nickname {
-  font-size: 1.25rem;
+  font-size: 1.1rem;
   font-weight: 800;
   letter-spacing: 0.5px;
   text-shadow: 0 0 10px currentColor;
@@ -167,7 +167,7 @@ const formatFullTime = (timeStr: string) => {
 
 .message-content {
   color: #f1f5f9;
-  font-size: 1.1rem;
+  font-size: 0.95rem;
   line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-all;

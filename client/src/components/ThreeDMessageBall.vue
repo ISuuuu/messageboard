@@ -26,7 +26,7 @@
       >
         <div class="card-glow" :style="{ backgroundColor: item.color }"></div>
         <div class="nickname" :style="{ color: item.color }">@{{ item.nickname }}</div>
-        <div class="content">{{ truncate(item.content, 30) }}</div>
+        <div class="content">{{ truncate(item.content, 22) }}</div>
         <div class="time">{{ formatTime(item.createdAt) }}</div>
       </div>
     </div>
@@ -37,7 +37,7 @@
 import { ref, onMounted, onUnmounted, watch } from 'vue';
 
 interface Message {
-  id?: number;
+  id?: string | number;
   content: string;
   nickname: string;
   color: string;
@@ -292,8 +292,8 @@ onUnmounted(() => {
   position: absolute;
   top: 50%;
   left: 50%;
-  margin-top: -70px; /* 居中校正，值为主卡片高度的一半 */
-  margin-left: -120px; /* 居中校正，值为主卡片宽度的一半 */
+  margin-top: -50px; /* 居中校正，值为主卡片高度的一半 */
+  margin-left: -90px; /* 居中校正，值为主卡片宽度的一半 */
   transition: transform 0.1s linear, opacity 0.1s linear, filter 0.1s linear;
   transform-style: preserve-3d;
   will-change: transform, opacity, filter;
@@ -302,10 +302,10 @@ onUnmounted(() => {
 
 .message-card {
   position: relative;
-  width: 240px;
-  height: 140px;
-  padding: 16px;
-  border-radius: 16px;
+  width: 180px;
+  height: 100px;
+  padding: 10px 12px;
+  border-radius: 12px;
   background: rgba(18, 22, 38, 0.55);
   border: 1px solid rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(14px);
@@ -344,7 +344,7 @@ onUnmounted(() => {
 }
 
 .nickname {
-  font-size: 0.85rem;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.5px;
   font-family: 'Outfit', sans-serif;
@@ -353,11 +353,11 @@ onUnmounted(() => {
 
 .content {
   color: #e2e8f0;
-  font-size: 0.9rem;
+  font-size: 0.8rem;
   line-height: 1.4;
-  margin: 10px 0;
+  margin: 5px 0;
   display: -webkit-box;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 2; /* 缩小高度，设为最大展示 2 行 */
   -webkit-box-orient: vertical;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -367,7 +367,7 @@ onUnmounted(() => {
 
 .time {
   color: #64748b;
-  font-size: 0.75rem;
+  font-size: 0.65rem;
   align-self: flex-end;
   font-family: monospace;
 }

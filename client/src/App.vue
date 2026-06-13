@@ -6,6 +6,14 @@
     <div class="glow-orb orb-2"></div>
     <div class="glow-orb orb-3"></div>
 
+    <!-- 顶部科技感 Brand Header -->
+    <header class="app-header">
+      <div class="brand">
+        <span class="brand-text">星轨留言板</span>
+        <span class="brand-sub">Stellar Orbit</span>
+      </div>
+    </header>
+
     <!-- 顶部状态通知栏 (提示发布成功) -->
     <Transition name="slide-down">
       <div v-if="toastMsg" class="toast-notification">
@@ -65,7 +73,7 @@ import MessageForm from './components/MessageForm.vue';
 import MessageDetail from './components/MessageDetail.vue';
 
 interface Message {
-  id?: number;
+  id?: string | number;
   content: string;
   nickname: string;
   color: string;
@@ -73,7 +81,7 @@ interface Message {
   createdAt: string;
 }
 
-const API_BASE_URL = 'http://localhost:3000/api';
+const API_BASE_URL = 'http://localhost:4001/api';
 
 const messages = ref<Message[]>([]);
 const isLoading = ref(true);
@@ -429,6 +437,50 @@ body {
 .slide-down-leave-to {
   transform: translate(-50%, -100px);
   opacity: 0;
+}
+
+/* 顶部科技感 Header */
+.app-header {
+  position: absolute;
+  top: 20px;
+  left: 30px;
+  z-index: 100;
+  pointer-events: none;
+}
+
+.brand {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+}
+
+.brand-text {
+  font-family: 'Outfit', sans-serif;
+  font-size: 1.25rem;
+  font-weight: 900;
+  letter-spacing: 1.5px;
+  background: linear-gradient(135deg, #fff 0%, #94a3b8 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 2px 10px rgba(255, 255, 255, 0.15);
+}
+
+.brand-sub {
+  font-family: monospace;
+  font-size: 0.65rem;
+  color: #00f0ff;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-top: 2px;
+  opacity: 0.8;
+  text-shadow: 0 0 8px rgba(0, 240, 255, 0.4);
+}
+
+/* 移动端适配调优 */
+@media (max-width: 768px) {
+  .app-header {
+    left: 20px;
+  }
 }
 
 </style>

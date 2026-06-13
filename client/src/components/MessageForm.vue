@@ -432,4 +432,21 @@ watch(() => props.isOpen, (newVal) => {
 .fade-leave-to {
   opacity: 0;
 }
+
+@media (max-width: 480px) {
+  .drawer-content {
+    padding: 24px 20px;
+  }
+  .drawer-header {
+    margin-top: 10px;
+    margin-bottom: 20px;
+  }
+  .close-btn {
+    top: 20px;
+    right: 20px;
+  }
+  .drawer-header h2 {
+    font-size: 1.5rem;
+  }
+}
 </style>

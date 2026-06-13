@@ -1,5 +1,7 @@
 import axios from 'axios';
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
 import { AuditProvider, AuditResult } from './AuditProvider';
 import { config } from '../config';
 
@@ -34,11 +36,15 @@ export class AliyunAuditProvider implements AuditProvider {
       .digest('base64');
   }
 
-  async audit(text: string): Promise<AuditResult> {
+  async audit(content: string, nickname?: string): Promise<AuditResult> {
     const { accessKeyId, accessKeySecret, endpoint } = config.aliyun;
     if (!accessKeyId || !accessKeySecret) {
       throw new Error('阿里云 AccessKey 未配置，请在 .env 中配置 ALIYUN_ACCESS_KEY_ID 和 ALIYUN_ACCESS_KEY_SECRET');
     }
+
+    const nameStr = nickname || '匿名';
+    // 联合检测：合并昵称和内容
+    const textToAudit = `昵称：${nameStr}\n内容：${content}`;
 
     try {
       // 准备 API 参数
@@ -53,7 +59,7 @@ export class AliyunAuditProvider implements AuditProvider {
         Timestamp: new Date().toISOString().replace(/\.\d{3}/, ''), // 格式化为 YYYY-MM-DDTHH:MM:SSZ
         RegionId: 'cn-shanghai',
         Service: 'comment_detection',
-        ServiceParameters: JSON.stringify({ content: text })
+        ServiceParameters: JSON.stringify({ content: textToAudit })
       };
 
       // 计算 Signature
@@ -84,9 +90,41 @@ export class AliyunAuditProvider implements AuditProvider {
         if (!resultData.labels || resultData.labels === 'normal' || resultData.labels === '') {
           return { passed: true };
         } else {
+          // 阿里云默认不提供触发词列表，尝试使用本地敏感词库对内容和昵称分别进行脱敏替换
+          let filteredContent = content;
+          let filteredNickname = nameStr;
+
+          try {
+            const localWordsPath = path.resolve(__dirname, '../../sensitive_words.txt');
+            if (fs.existsSync(localWordsPath)) {
+              const contentFile = fs.readFileSync(localWordsPath, 'utf-8');
+              const localWords = contentFile
+                .split(/\r?\n/)
+                .map(w => w.trim())
+                .filter(w => w.length > 0 && !w.startsWith('#'));
+              
+              localWords.sort((a, b) => b.length - a.length);
+              localWords.forEach(word => {
+                filteredContent = filteredContent.split(word).join('***');
+                filteredNickname = filteredNickname.split(word).join('***');
+              });
+            }
+          } catch (e) {
+            // 忽略读取错误
+          }
+
+          // 如果经过本地替换后没有任何字段变化，出于安全考虑将整体保底屏蔽
+          if (filteredContent === content && filteredNickname === nameStr) {
+            filteredContent = '***(内容违规已屏蔽)';
+            filteredNickname = '***';
+          }
+
           return {
             passed: false,
-            reason: `阿里云审核拦截: [${resultData.labels}] - 原因: ${resultData.reason || '涉嫌违规'}`
+            reason: `阿里云审核拦截: [${resultData.labels}] - 原因: ${resultData.reason || '涉嫌违规'}`,
+            filteredContent,
+            filteredNickname,
+            filteredText: filteredContent // 向下兼容旧字段
           };
         }
       }

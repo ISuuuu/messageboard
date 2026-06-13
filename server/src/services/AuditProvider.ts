@@ -1,9 +1,11 @@
 export interface AuditResult {
   passed: boolean;
-  reason?: string;      // 拦截原因（例如：涉政、色情、广告等）
-  filteredText?: string; // 脱敏后的文本（如果只做脱敏不做彻底拦截的话）
+  reason?: string;             // 拦截原因（例如：涉政、色情、广告等）
+  filteredText?: string;       // 【向下兼容】脱敏后的内容
+  filteredContent?: string;    // 脱敏后的留言内容
+  filteredNickname?: string;   // 脱敏后的昵称
 }
 
 export interface AuditProvider {
-  audit(text: string): Promise<AuditResult>;
+  audit(content: string, nickname?: string): Promise<AuditResult>;
 }
