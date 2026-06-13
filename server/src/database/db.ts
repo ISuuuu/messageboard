@@ -44,7 +44,12 @@ export async function initDatabase() {
 
 export async function getApprovedMessages(): Promise<Message[]> {
   return db.all<Message[]>(
-    'SELECT * FROM messages WHERE status = ? ORDER BY createdAt DESC',
+    `SELECT id, content, nickname, color, size, 
+            strftime('%Y-%m-%dT%H:%M:%SZ', createdAt) as createdAt, 
+            status, rejectReason 
+     FROM messages 
+     WHERE status = ? 
+     ORDER BY createdAt DESC`,
     'approved'
   );
 }

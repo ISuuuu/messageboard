@@ -7,6 +7,7 @@
     @touchstart="handleTouchStart"
     @touchmove="handleTouchMove"
     @touchend="handleTouchEnd"
+    @wheel.prevent="handleWheel"
   >
     <div 
       class="message-item-wrapper"
@@ -62,11 +63,21 @@ const emit = defineEmits<{
 const containerRef = ref<HTMLElement | null>(null);
 const items = ref<Message[]>([]);
 
-// 3D 渲染常数
-const RADIUS = 250; // 球体半径
+// 3D 渲染响应式半径
+const radius = ref(250);
 const speedX = ref(0.003); // 绕 X 轴旋转弧度速度
 const speedY = ref(0.003); // 绕 Y 轴旋转弧度速度
+const impulseX = ref(0);   // 滚轮带来的绕 X 轴物理旋转冲量
+const impulseY = ref(0);   // 滚轮带来的绕 Y 轴物理旋转冲量
 let animationFrameId: number;
+
+// 依据容器的可用尺寸动态更新球体半径，保障一屏自适应且不超出裁剪
+const updateRadius = () => {
+  if (!containerRef.value) return;
+  const rect = containerRef.value.getBoundingClientRect();
+  // 半径大小设为宽高度中极小值的 35%，为气泡卡片四周留出足够的缓冲带以防溢出
+  radius.value = Math.min(rect.width, rect.height) * 0.35;
+};
 
 // 初始化球面上点的 3D 坐标 (斐波那契螺旋面算法)
 const initPositions = () => {
@@ -80,9 +91,9 @@ const initPositions = () => {
 
     return {
       ...msg,
-      x: RADIUS * Math.sin(phi) * Math.cos(theta),
-      y: RADIUS * Math.sin(phi) * Math.sin(theta),
-      z: RADIUS * Math.cos(phi),
+      x: radius.value * Math.sin(phi) * Math.cos(theta),
+      y: radius.value * Math.sin(phi) * Math.sin(theta),
+      z: radius.value * Math.cos(phi),
       scale: 1,
       opacity: 1,
       blur: 0
@@ -124,15 +135,21 @@ const rotateY = (angle: number) => {
 
 // 动画主循环
 const update = () => {
-  // 绕 X 和 Y 轴微量旋转
-  rotateX(speedX.value);
-  rotateY(speedY.value);
+  // 绕 X 和 Y 轴旋转（基础速度 + 滚轮冲量）
+  rotateX(speedX.value + impulseX.value);
+  rotateY(speedY.value + impulseY.value);
+
+  // 滚轮冲量阻尼衰减（摩擦力），使其逐渐慢下来并归零
+  impulseX.value *= 0.95;
+  impulseY.value *= 0.95;
+  if (Math.abs(impulseX.value) < 0.0001) impulseX.value = 0;
+  if (Math.abs(impulseY.value) < 0.0001) impulseY.value = 0;
 
   // 计算景深和投影
   items.value.forEach(item => {
     if (item.z !== undefined) {
       // 归一化深度比例 (从 0.5 到 1.5)
-      const scale = (item.z + RADIUS) / (2 * RADIUS); 
+      const scale = (item.z + radius.value) / (2 * radius.value); 
       item.scale = 0.5 + scale * 0.8; // 字号缩放 (0.5x ~ 1.3x)
       item.opacity = 0.2 + scale * 0.8; // 透明度渐变 (0.2 ~ 1.0)
       item.blur = Math.max(0, (1 - scale) * 4); // 远距离模糊 (0px ~ 4px)
@@ -162,6 +179,15 @@ const handleMouseMove = (e: MouseEvent) => {
 const handleMouseLeave = () => {
   speedX.value = 0.003;
   speedY.value = 0.003;
+};
+
+// 处理鼠标滚轮滚动交互，转化为旋转冲量（Impulse）
+const handleWheel = (e: WheelEvent) => {
+  // e.deltaY 表示垂直滚轮滚动量，给 X 轴旋转速度增能；乘以系数以防转速失控
+  // 向上滚动为负值，向下滚动为正值
+  impulseX.value += e.deltaY * 0.00015;
+  // e.deltaX 表示水平滚轮滚动量，给 Y 轴旋转速度增能
+  impulseY.value += e.deltaX * 0.00015;
 };
 
 // 移动端触摸交互支持
@@ -208,12 +234,18 @@ const getStyle = (item: Message) => {
     transform: `translate3d(${x}px, ${y}px, ${z}px) scale(${scale})`,
     opacity: opacity,
     filter: `blur(${blur}px)`,
-    zIndex: Math.round((item.z || 0) + RADIUS),
+    zIndex: Math.round((item.z || 0) + radius.value), // 改用动态 radius
   };
 };
 
 const handleItemClick = (message: Message) => {
   emit('select', message);
+};
+
+// 窗口尺寸变化事件处理
+const handleResize = () => {
+  updateRadius();
+  initPositions();
 };
 
 // 工具方法
@@ -229,12 +261,15 @@ const formatTime = (timeStr: string) => {
 };
 
 onMounted(() => {
-  initPositions();
+  updateRadius(); // 先检测一次尺寸
+  initPositions(); // 再根据检测出的尺寸进行三维分布
   update();
+  window.addEventListener('resize', handleResize); // 绑定窗口自适应
 });
 
 onUnmounted(() => {
   cancelAnimationFrame(animationFrameId);
+  window.removeEventListener('resize', handleResize); // 卸载监听
 });
 </script>
 
@@ -242,10 +277,9 @@ onUnmounted(() => {
 .ball-container {
   position: relative;
   width: 100%;
-  height: 600px;
-  max-width: 600px;
+  height: 100%;
   margin: 0 auto;
-  perspective: 800px; /* 创建 3D 透视视图 */
+  perspective: 1000px; /* 创建 3D 透视视图 */
   transform-style: preserve-3d;
   cursor: grab;
 }
@@ -258,8 +292,8 @@ onUnmounted(() => {
   position: absolute;
   top: 50%;
   left: 50%;
-  margin-top: -65px; /* 居中校正，值为主卡片高度的一半 */
-  margin-left: -110px; /* 居中校正，值为主卡片宽度的一半 */
+  margin-top: -70px; /* 居中校正，值为主卡片高度的一半 */
+  margin-left: -120px; /* 居中校正，值为主卡片宽度的一半 */
   transition: transform 0.1s linear, opacity 0.1s linear, filter 0.1s linear;
   transform-style: preserve-3d;
   will-change: transform, opacity, filter;
@@ -268,8 +302,8 @@ onUnmounted(() => {
 
 .message-card {
   position: relative;
-  width: 220px;
-  height: 130px;
+  width: 240px;
+  height: 140px;
   padding: 16px;
   border-radius: 16px;
   background: rgba(18, 22, 38, 0.55);

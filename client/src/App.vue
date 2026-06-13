@@ -14,20 +14,10 @@
       </div>
     </Transition>
 
-    <header class="app-header">
-      <div class="brand">
-        <span class="brand-tag">v1.0.0</span>
-        <h1 class="glow-text">CYBER SPHERE</h1>
-        <p class="subtitle">3D 交互式球形留言空间</p>
-      </div>
-      <div class="actions">
-        <button class="write-btn" @click="isFormOpen = true">
-          <span class="btn-glow"></span>
-          <svg class="icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-          留下你的声音
-        </button>
-      </div>
-    </header>
+    <button class="write-btn" @click="isFormOpen = true" title="留下声音">
+      <span class="btn-glow"></span>
+      <svg class="icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
 
     <main class="app-main">
       <!-- Loading 占位状态 -->
@@ -49,10 +39,6 @@
         <ThreeDMessageBall :messages="messages" @select="handleSelectMessage" />
       </div>
     </main>
-
-    <footer class="app-footer">
-      <p>Powered by Vite + Vue 3 // 智能云文本审查与大模型过滤系统内置</p>
-    </footer>
 
     <!-- 侧边抽屉表单 -->
     <MessageForm 
@@ -195,13 +181,13 @@ body {
 
 /* 主容器 */
 .app-container {
-  min-height: 100vh;
+  height: 100vh; /* 强锁单屏高度 */
   position: relative;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   overflow: hidden;
-  padding: 30px;
+  padding: 15px 30px; /* 压缩垂直 Padding，保留左右 Padding 宽度 */
 }
 
 /* 霓虹发光底色球 */
@@ -258,73 +244,27 @@ body {
   -webkit-mask-image: radial-gradient(ellipse 60% 50% at 50% 50%, #000 60%, transparent 100%);
 }
 
-/* 头部样式 */
-.app-header {
-  position: relative;
-  z-index: 10;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  max-width: 1200px;
-  width: 100%;
-  margin: 0 auto 30px auto;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  padding-bottom: 20px;
-}
-
-.brand {
-  text-align: left;
-}
-
-.brand-tag {
-  background: linear-gradient(90deg, rgba(255, 0, 127, 0.2), rgba(0, 240, 255, 0.2));
-  border: 1px solid rgba(0, 240, 255, 0.3);
-  border-radius: 20px;
-  color: #00f0ff;
-  font-family: monospace;
-  font-size: 0.75rem;
-  font-weight: 700;
-  padding: 3px 10px;
-  display: inline-block;
-  margin-bottom: 10px;
-}
-
-.glow-text {
-  font-family: 'Outfit', sans-serif;
-  font-weight: 900;
-  font-size: 2.5rem;
-  letter-spacing: 2px;
-  background: linear-gradient(135deg, #fff 30%, #00f0ff 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  text-shadow: 0 0 30px rgba(0, 240, 255, 0.2);
-}
-
-.subtitle {
-  color: #64748b;
-  font-size: 0.95rem;
-  font-weight: 600;
-  letter-spacing: 1px;
-}
-
-/* 按钮效果 */
+/* 按钮基础样式（正圆形、无文本、锁定右上角） */
 .write-btn {
-  position: relative;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: #fff;
-  font-family: 'Inter', sans-serif;
-  font-weight: 700;
-  font-size: 0.95rem;
-  padding: 14px 28px;
-  border-radius: 14px;
+  position: fixed; /* 强锁 fixed 视口定位，杜绝父级 flex 干扰 */
+  top: 20px;
+  right: 20px;
+  z-index: 100;
+  width: 42px; /* 固定宽高，形成正圆 */
+  height: 42px;
+  background: rgba(18, 22, 38, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: #f1f5f9;
+  border-radius: 50%; /* 改为正圆 */
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: center; /* 图标绝对居中 */
   overflow: hidden;
   transition: all 0.3s ease;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
 }
 
 .btn-glow {
@@ -338,8 +278,8 @@ body {
 
 .write-btn:hover {
   border-color: transparent;
-  transform: translateY(-2px);
-  box-shadow: 0 0 25px rgba(0, 240, 255, 0.35);
+  transform: translateY(-1px);
+  box-shadow: 0 0 20px rgba(0, 240, 255, 0.3);
 }
 
 .write-btn:hover .btn-glow {
@@ -365,13 +305,18 @@ body {
   align-items: center;
   justify-content: center;
   width: 100%;
+  min-height: 0; /* 强迫 Flex 子项收缩，禁止内容撑破单屏 */
+  height: 100%;
+  overflow: hidden;
 }
 
 .ball-wrapper {
   width: 100%;
+  height: 100%; /* 撑满主区域高度 */
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
 }
 
 /* Loading 效果 */
@@ -486,13 +431,4 @@ body {
   opacity: 0;
 }
 
-/* 页脚 */
-.app-footer {
-  position: relative;
-  z-index: 10;
-  margin-top: 30px;
-  color: #475569;
-  font-size: 0.8rem;
-  font-family: monospace;
-}
 </style>
