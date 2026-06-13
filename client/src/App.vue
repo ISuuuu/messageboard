@@ -81,7 +81,9 @@ interface Message {
   createdAt: string;
 }
 
-const API_BASE_URL = 'http://localhost:4001/api';
+const API_BASE_URL = import.meta.env.DEV 
+  ? 'http://localhost:4001/api' 
+  : '/api';
 
 const messages = ref<Message[]>([]);
 const isLoading = ref(true);
