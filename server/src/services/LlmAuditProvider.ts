@@ -11,6 +11,12 @@ export class LlmAuditProvider implements AuditProvider {
 
     const nameStr = nickname || '匿名';
 
+    // 1. 发起请求前的详细控制台日志
+    console.log(`\n=================【大模型安全审查开始】=================`);
+    console.log(`[LLM 审核] 正在发起请求 [Model: ${model}]...`);
+    console.log(`[LLM 审核] 待审昵称: "${nameStr}"`);
+    console.log(`[LLM 审核] 待审内容: "${content}"`);
+
     try {
       const systemPrompt = `你是一个严格的留言板文本内容安全审查助手。你的任务是同时审查用户留言的“昵称”和“内容”是否包含违禁或不适宜公开展示的内容。
 审查范围包括但不限于：
@@ -52,6 +58,9 @@ export class LlmAuditProvider implements AuditProvider {
         throw new Error('LLM 接口返回内容为空');
       }
 
+      // 2. 打印大模型的原始文本返回
+      console.log(`[LLM 审核] 大模型原始响应内容:\n${choiceContent.trim()}`);
+
       // 提取并解析 JSON
       let jsonStr = choiceContent.trim();
       // 兼容可能带有 markdown ```json 标记的输出
@@ -61,25 +70,28 @@ export class LlmAuditProvider implements AuditProvider {
       }
 
       const result = JSON.parse(jsonStr);
-      
       const passed = !!result.passed;
+      
+      const resNickname = result.filteredNickname || (passed ? nameStr : '***');
+      const resContent = result.filteredContent || (passed ? content : '***(内容违规已屏蔽)');
+
+      // 3. 打印解析完成后的结果日志
+      console.log(`[LLM 审核] 解析结果 -> 是否通过: ${passed} | 拦截原因: "${result.reason || '无'}"`);
+      console.log(`[LLM 审核] 过滤结果 -> 昵称: "${resNickname}" | 内容: "${resContent}"`);
+      console.log(`=================【大模型安全审查结束】=================\n`);
+
       return {
         passed,
         reason: result.reason || 'AI 判定不合规',
-        filteredNickname: result.filteredNickname || (passed ? nameStr : '***'),
-        filteredContent: result.filteredContent || (passed ? content : '***(内容违规已屏蔽)'),
-        filteredText: result.filteredContent || (passed ? content : '***(内容违规已屏蔽)') // 向下兼容旧字段
+        filteredNickname: resNickname,
+        filteredContent: resContent,
+        filteredText: resContent // 向下兼容旧字段
       };
     } catch (error: any) {
-      console.error('LLM 联合审核异常:', error.message || error);
-      // Fallback: 如果 LLM 报错或超时，默认选择拦截并提示审核失败。
-      return {
-        passed: false,
-        reason: `AI 审核暂不可用 (${error.message || '网络超时'})`,
-        filteredNickname: '***',
-        filteredContent: '***(内容违规已屏蔽)',
-        filteredText: '***(内容违规已屏蔽)' // 向下兼容旧字段
-      };
+      console.error('[LLM 审核] 发生异常:', error.message || error);
+      console.log(`=================【大模型安全审查失败】=================\n`);
+      // 抛出错误以激活主管理器的本地 Fallback 降级机制，防止服务不可用
+      throw error;
     }
   }
 }
