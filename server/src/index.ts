@@ -1,8 +1,9 @@
 import express from 'express';
 import cors from 'cors';
 import crypto from 'crypto';
+import cron from 'node-cron';
 import { config } from './config';
-import { initDatabase, getApprovedMessages, createMessage } from './database/db';
+import { initDatabase, getApprovedMessages, createMessage, hideExpiredMessages } from './database/db';
 import { auditManager } from './services/AuditManager';
 
 const app = express();
@@ -120,6 +121,12 @@ async function startServer() {
   try {
     // 初始化 SQLite 数据库
     await initDatabase();
+
+    // 每天 0 点将超过 24 小时的含违禁词留言归档到 hidden_messages 表
+    cron.schedule('0 0 * * *', async () => {
+      const moved = await hideExpiredMessages();
+      console.log(`[定时归档] 已将 ${moved} 条过期违禁留言移至 hidden_messages`);
+    });
 
     app.listen(config.port, () => {
       console.log(`=========================================`);

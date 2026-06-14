@@ -48,16 +48,36 @@ export async function initDatabase() {
     // 若字段已存在会抛错，直接捕获忽略即可
   }
 
+  // 创建隐藏留言归档表，结构与 messages 一致
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS hidden_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      content TEXT NOT NULL,
+      nickname TEXT NOT NULL,
+      color TEXT NOT NULL,
+      size INTEGER DEFAULT 1,
+      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+      status TEXT DEFAULT 'pending',
+      rejectReason TEXT,
+      originalContent TEXT
+    )
+  `);
+
+  // 为 messages 表添加索引，加速按 status + createdAt 的查询与排序
+  await db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_messages_status_created
+    ON messages (status, createdAt DESC)
+  `);
+
   console.log('Database initialized successfully. WAL mode enabled.');
 }
 
 export async function getApprovedMessages(): Promise<Message[]> {
   return db.all<Message[]>(
-    `SELECT id, content, nickname, color, size, 
-            strftime('%Y-%m-%dT%H:%M:%SZ', createdAt) as createdAt 
-     FROM messages 
-     WHERE status = ? 
-       AND (rejectReason IS NULL OR createdAt >= datetime('now', '-1 day'))
+    `SELECT id, content, nickname, color, size,
+            strftime('%Y-%m-%dT%H:%M:%SZ', createdAt) as createdAt
+     FROM messages
+     WHERE status = ?
      ORDER BY createdAt DESC`,
     'approved'
   );
@@ -78,4 +98,27 @@ export async function createMessage(message: Omit<Message, 'createdAt'>): Promis
     ]
   );
   return result.lastID!;
+}
+
+/**
+ * 将超过 24 小时的含违禁词留言转移到 hidden_messages 表
+ * 每天 0 点由定时任务调用，数据保留不删除
+ */
+export async function hideExpiredMessages(): Promise<number> {
+  const result = await db.run(
+    `INSERT INTO hidden_messages (id, content, nickname, color, size, createdAt, status, rejectReason, originalContent)
+     SELECT id, content, nickname, color, size, createdAt, status, rejectReason, originalContent
+     FROM messages
+     WHERE rejectReason IS NOT NULL
+       AND createdAt < datetime('now', '-1 day')`
+  );
+  const moved = result.changes ?? 0;
+  if (moved > 0) {
+    await db.run(
+      `DELETE FROM messages
+       WHERE rejectReason IS NOT NULL
+         AND createdAt < datetime('now', '-1 day')`
+    );
+  }
+  return moved;
 }
