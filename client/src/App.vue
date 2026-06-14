@@ -172,7 +172,7 @@ onMounted(() => {
 </script>
 
 <style>
-@import url('https://fonts.font.im/css2?family=Inter:wght@400;600;800&family=Outfit:wght@600;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Outfit:wght@600;800;900&display=swap');
 
 /* 全局重置与基本变量 */
 * {
