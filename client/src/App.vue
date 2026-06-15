@@ -102,7 +102,11 @@ const toastMsg = ref('');
 // 获取所有已通过的留言列表
 const fetchMessages = async () => {
   try {
-    const response = await fetch(`${API_BASE_URL}/messages`);
+    const response = await fetch(`${API_BASE_URL}/messages`, {
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    });
     const result = await response.json();
     if (result.success) {
       messages.value = result.data;
@@ -123,7 +127,8 @@ const handlePublish = async (formData: { content: string; nickname: string; colo
     const response = await fetch(`${API_BASE_URL}/messages`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
       },
       body: JSON.stringify({
         content: formData.content,

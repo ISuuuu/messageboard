@@ -12,6 +12,17 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// 安全防护中间件：防浏览器直接输入 URL 访问（仅允许携带特定自定义 Header 的 AJAX 请求）
+app.use('/api', (req, res, next) => {
+  if (req.headers['x-requested-with'] !== 'XMLHttpRequest') {
+    return res.status(403).json({
+      success: false,
+      message: 'Access Denied: Direct access is not allowed'
+    });
+  }
+  next();
+});
+
 function obfuscateId(id: string | number | undefined): number {
   if (id === undefined) return 0;
   const numId = typeof id === 'string' ? parseInt(id, 10) : id;
