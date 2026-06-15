@@ -2,18 +2,34 @@ import express from 'express';
 import cors from 'cors';
 import crypto from 'crypto';
 import cron from 'node-cron';
+import { rateLimit } from 'express-rate-limit';
 import { config } from './config';
 import { initDatabase, getApprovedMessages, createMessage, hideExpiredMessages } from './database/db';
 import { auditManager } from './services/AuditManager';
 
 const app = express();
 
+// 如果服务部署在 Nginx 反向代理后面，必须启用 trust proxy，否则 rate-limit 会把 Nginx 本地 IP 识别为所有请求的来源
+app.set('trust proxy', 1);
+
 // 配置中间件
 app.use(cors());
 app.use(express.json());
 
+// 接口限流中间件：同一个 IP 1 分钟最多请求 30 次 /api 接口，防暴力爬取和恶意刷屏
+const apiLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 分钟
+  max: 30, // 限制 30 次
+  message: {
+    success: false,
+    message: 'Too many requests, please try again later. 请求过于频繁，请稍后再试。'
+  },
+  standardHeaders: true, // 返回 RateLimit-* 头
+  legacyHeaders: false, // 禁用旧的 X-RateLimit-* 头
+});
+
 // 安全防护中间件：防浏览器直接输入 URL 访问（仅允许携带特定自定义 Header 的 AJAX 请求）
-app.use('/api', (req, res, next) => {
+app.use('/api', apiLimiter, (req, res, next) => {
   if (req.headers['x-requested-with'] !== 'XMLHttpRequest') {
     return res.status(403).json({
       success: false,
