@@ -74,6 +74,10 @@ class AuditManager implements AuditProvider {
         console.log(`[AuditManager] 本地初筛通过，开始使用 [${config.auditProvider}] 进行深度审核...`);
         return await this.externalProvider.audit(content, nickname);
       } catch (e: any) {
+        // 若为每日额度用尽，不自动降级放行，抛出给上层以进行独立未审核归档
+        if (e.message && e.message.includes('今日大模型调用已达上限')) {
+          throw e;
+        }
         console.error(`[AuditManager] 外部审核服务 [${config.auditProvider}] 异常, 信任本地初筛通过结果:`, e.message || e);
         // 云端接口异常时 Fallback 信任本地初筛结果
         return {

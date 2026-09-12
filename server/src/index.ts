@@ -4,7 +4,15 @@ import crypto from 'crypto';
 import cron from 'node-cron';
 import { rateLimit } from 'express-rate-limit';
 import { config } from './config';
-import { initDatabase, getApprovedMessages, createMessage, hideExpiredMessages } from './database/db';
+import { 
+  initDatabase, 
+  getApprovedMessages, 
+  createMessage, 
+  hideExpiredMessages, 
+  createUnreviewedMessage, 
+  getAuditUsage, 
+  getTodayDateString 
+} from './database/db';
 import { auditManager } from './services/AuditManager';
 
 const app = express();
@@ -96,6 +104,27 @@ app.post('/api/messages', async (req, res): Promise<any> => {
 
     const msgSize = (typeof size === 'number' && size >= 1 && size <= 5) ? size : 1;
 
+    // 0. 大模型审核每日配额检查（若超出上限则不进行审核，直接存入 unreviewed_messages 表仅作记录，不公开展示）
+    if (config.auditProvider === 'llm') {
+      const today = getTodayDateString();
+      const currentUsage = await getAuditUsage(today);
+      if (currentUsage >= config.llm.dailyLimit) {
+        console.warn(`[POST /api/messages] 今日大模型审核调用已达上限 (${currentUsage}/${config.llm.dailyLimit} 次)，当前留言跳过审核，直接记录至 unreviewed_messages 表`);
+        await createUnreviewedMessage({
+          content,
+          nickname: name,
+          color: msgColor,
+          size: msgSize,
+          reason: `超出每日大模型审核上限(${config.llm.dailyLimit}次)，仅记录未审核`
+        });
+
+        return res.json({
+          success: true,
+          message: '留言发布成功！'
+        });
+      }
+    }
+
     // 1. 进行内容审核 (将内容与昵称联合发送至审核引擎)
     const auditResult = await auditManager.audit(content, name);
 
@@ -135,6 +164,32 @@ app.post('/api/messages', async (req, res): Promise<any> => {
       });
     }
   } catch (error: any) {
+    // 捕获并发临界情况下触发的每日上限异常
+    if (error.message && error.message.includes('今日大模型调用已达上限')) {
+      try {
+        const { content, nickname, color, size } = req.body;
+        const name = (nickname && typeof nickname === 'string' && nickname.trim() !== '') ? nickname.trim() : '匿名';
+        const msgColor = (color && typeof color === 'string') ? color : '#00f0ff';
+        const msgSize = (typeof size === 'number' && size >= 1 && size <= 5) ? size : 1;
+
+        console.warn(`[POST /api/messages] 并发捕获：大模型每日调用已达上限，转存至 unreviewed_messages 表`);
+        await createUnreviewedMessage({
+          content,
+          nickname: name,
+          color: msgColor,
+          size: msgSize,
+          reason: `超出每日大模型审核上限(${config.llm.dailyLimit}次)，仅记录未审核`
+        });
+
+        return res.json({
+          success: true,
+          message: '留言发布成功！'
+        });
+      } catch (innerErr) {
+        console.error('未审核留言记录失败:', innerErr);
+      }
+    }
+
     console.error('提交留言错误:', error);
     return res.status(500).json({
       success: false,

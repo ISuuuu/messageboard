@@ -23,6 +23,7 @@ export const config = {
     apiKey: process.env.LLM_API_KEY || '',
     baseUrl: process.env.LLM_BASE_URL || 'https://api.deepseek.com/v1',
     model: process.env.LLM_MODEL || 'deepseek-chat',
+    dailyLimit: parseInt(process.env.LLM_DAILY_LIMIT || '1000', 10),
   },
 
   dbPath: path.resolve(__dirname, '../../database.db'),

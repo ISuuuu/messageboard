@@ -69,6 +69,27 @@ export async function initDatabase() {
     ON messages (status, createdAt DESC)
   `);
 
+  // 创建每日审核用量表，记录各类外部审核调用的每日次数
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS audit_usage (
+      date TEXT PRIMARY KEY,
+      count INTEGER DEFAULT 0
+    )
+  `);
+
+  // 创建未审核仅记录留言表（超出每日审核配额时直接记录入库，不审核不公开展示）
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS unreviewed_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      content TEXT NOT NULL,
+      nickname TEXT NOT NULL,
+      color TEXT NOT NULL,
+      size INTEGER DEFAULT 1,
+      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+      reason TEXT
+    )
+  `);
+
   console.log('Database initialized successfully. WAL mode enabled.');
 }
 
@@ -121,4 +142,66 @@ export async function hideExpiredMessages(): Promise<number> {
     );
   }
   return moved;
+}
+
+/**
+ * 增加并获取指定日期的审核调用次数（原子操作）
+ */
+export async function incrementAuditUsage(dateStr: string): Promise<number> {
+  await db.run(
+    `INSERT INTO audit_usage (date, count) VALUES (?, 1)
+     ON CONFLICT(date) DO UPDATE SET count = count + 1`,
+    dateStr
+  );
+  const row = await db.get<{ count: number }>(
+    `SELECT count FROM audit_usage WHERE date = ?`,
+    dateStr
+  );
+  return row?.count ?? 1;
+}
+
+/**
+ * 获取指定日期的审核调用次数
+ */
+export async function getAuditUsage(dateStr: string): Promise<number> {
+  const row = await db.get<{ count: number }>(
+    `SELECT count FROM audit_usage WHERE date = ?`,
+    dateStr
+  );
+  return row?.count ?? 0;
+}
+
+/**
+ * 获取本地自然日日期字符串（YYYY-MM-DD）
+ */
+export function getTodayDateString(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * 将超出配额未审核的留言存入 unreviewed_messages 表仅作记录
+ */
+export async function createUnreviewedMessage(message: {
+  content: string;
+  nickname: string;
+  color: string;
+  size: number;
+  reason?: string;
+}): Promise<number> {
+  const result = await db.run(
+    `INSERT INTO unreviewed_messages (content, nickname, color, size, reason)
+     VALUES (?, ?, ?, ?, ?)`,
+    [
+      message.content,
+      message.nickname || '匿名',
+      message.color || '#ffffff',
+      message.size || 1,
+      message.reason || '超出每日大模型审核上限，仅记录未审核'
+    ]
+  );
+  return result.lastID!;
 }

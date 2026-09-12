@@ -1,19 +1,36 @@
 import axios from 'axios';
 import { AuditProvider, AuditResult } from './AuditProvider';
 import { config } from '../config';
+import { incrementAuditUsage } from '../database/db';
+
+function getTodayDateString(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
 
 export class LlmAuditProvider implements AuditProvider {
   async audit(content: string, nickname?: string): Promise<AuditResult> {
-    const { apiKey, baseUrl, model } = config.llm;
+    const { apiKey, baseUrl, model, dailyLimit } = config.llm;
     if (!apiKey) {
       throw new Error('大模型 API Key 未配置，请在 .env 中配置 LLM_API_KEY');
+    }
+
+    // 检查每日调用上限（默认 1000 次/天）
+    const today = getTodayDateString();
+    const currentUsage = await incrementAuditUsage(today);
+    if (currentUsage > dailyLimit) {
+      console.warn(`[LLM 审核] 今日大模型调用已达上限 (${dailyLimit} 次，当前尝试: ${currentUsage})，自动跳过调用并降级为本地审核`);
+      throw new Error(`今日大模型调用已达上限 (${dailyLimit} 次)`);
     }
 
     const nameStr = nickname || '匿名';
 
     // 1. 发起请求前的详细控制台日志
     console.log(`\n=================【大模型安全审查开始】=================`);
-    console.log(`[LLM 审核] 正在发起请求 [Model: ${model}]...`);
+    console.log(`[LLM 审核] 正在发起请求 [Model: ${model}] (今日第 ${currentUsage}/${dailyLimit} 次)...`);
     console.log(`[LLM 审核] 待审昵称: "${nameStr}"`);
     console.log(`[LLM 审核] 待审内容: "${content}"`);
 
