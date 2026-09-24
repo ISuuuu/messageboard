@@ -161,14 +161,18 @@
               >
                 <!-- ID 与归档状态小标 -->
                 <td class="td-id">
-                  <span>#{{ msg.id }}</span>
-                  <span v-if="msg.source === 'hidden'" class="mini-tag-hidden" title="因含限制词超24小时已归档">归档</span>
+                  <div class="td-id-wrap">
+                    <span>#{{ msg.id }}</span>
+                    <span v-if="msg.source === 'hidden'" class="mini-tag-hidden" title="因含限制词超24小时已归档">归档</span>
+                  </div>
                 </td>
 
                 <!-- 昵称 -->
                 <td class="td-nickname">
-                  <span class="dot" :style="{ backgroundColor: msg.color }"></span>
-                  <span class="name-text" :title="msg.nickname">{{ msg.nickname }}</span>
+                  <div class="td-nickname-wrap">
+                    <span class="dot" :style="{ backgroundColor: msg.color }"></span>
+                    <span class="name-text" :title="msg.nickname">{{ msg.nickname }}</span>
+                  </div>
                 </td>
 
                 <!-- 展示内容 -->
@@ -1044,10 +1048,12 @@ onMounted(() => {
   color: #64748b;
   font-family: monospace;
   font-size: 12px;
-  display: flex;
+  white-space: nowrap;
+}
+.td-id-wrap {
+  display: inline-flex;
   align-items: center;
   gap: 4px;
-  white-space: nowrap;
 }
 .mini-tag-hidden {
   display: inline-block;
@@ -1060,12 +1066,15 @@ onMounted(() => {
   line-height: 1.4;
 }
 .td-nickname {
-  display: flex;
-  align-items: center;
-  gap: 6px;
   max-width: 130px;
   font-weight: 500;
   color: #f1f5f9;
+}
+.td-nickname-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
 }
 .name-text {
   overflow: hidden;
