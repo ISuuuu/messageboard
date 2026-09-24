@@ -26,5 +26,7 @@ export const config = {
     dailyLimit: parseInt(process.env.LLM_DAILY_LIMIT || '1000', 10),
   },
 
+  adminKey: process.env.ADMIN_KEY || 'admin123',
+
   dbPath: path.resolve(__dirname, '../../database.db'),
 };

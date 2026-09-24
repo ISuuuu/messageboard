@@ -11,7 +11,11 @@ import {
   hideExpiredMessages, 
   createUnreviewedMessage, 
   getAuditUsage, 
-  getTodayDateString 
+  getTodayDateString,
+  getAllMessagesForAdmin,
+  updateMessageById,
+  restoreHiddenMessage,
+  deleteMessageById
 } from './database/db';
 import { auditManager } from './services/AuditManager';
 
@@ -195,6 +199,97 @@ app.post('/api/messages', async (req, res): Promise<any> => {
       success: false,
       message: '服务器处理留言异常'
     });
+  }
+});
+
+// 管理员权限校验中间件
+const adminAuth = (req: express.Request, res: express.Response, next: express.NextFunction): any => {
+  const token = (req.headers['x-admin-token'] as string) || req.headers['authorization']?.replace('Bearer ', '');
+  if (!token || token !== config.adminKey) {
+    return res.status(401).json({
+      success: false,
+      message: '管理员口令错误或未提供'
+    });
+  }
+  next();
+};
+
+// 验证管理员口令
+app.post('/api/admin/verify', adminAuth, (req, res) => {
+  res.json({ success: true, message: '认证通过' });
+});
+
+// 管理员获取所有留言（包含活跃与已归档）
+app.get('/api/admin/messages', adminAuth, async (req, res) => {
+  try {
+    const messages = await getAllMessagesForAdmin();
+    res.json({
+      success: true,
+      data: messages
+    });
+  } catch (error: any) {
+    console.error('管理员获取留言失败:', error);
+    res.status(500).json({ success: false, message: '获取留言列表失败' });
+  }
+});
+
+// 管理员更新留言
+app.put('/api/admin/messages/:id', adminAuth, async (req, res): Promise<any> => {
+  try {
+    const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const id = parseInt(rawId, 10);
+    const { source = 'active', content, nickname, status, rejectReason } = req.body;
+    if (isNaN(id)) {
+      return res.status(400).json({ success: false, message: 'ID 无效' });
+    }
+    const ok = await updateMessageById(id, source, { content, nickname, status, rejectReason });
+    if (!ok) {
+      return res.status(404).json({ success: false, message: '留言未找到或无修改' });
+    }
+    res.json({ success: true, message: '修改成功' });
+  } catch (error: any) {
+    console.error('管理员修改留言失败:', error);
+    res.status(500).json({ success: false, message: '修改留言失败' });
+  }
+});
+
+// 管理员将归档留言恢复至主留言列表
+app.post('/api/admin/messages/:id/restore', adminAuth, async (req, res): Promise<any> => {
+  try {
+    const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const id = parseInt(rawId, 10);
+    const { content } = req.body;
+    if (isNaN(id)) {
+      return res.status(400).json({ success: false, message: 'ID 无效' });
+    }
+    const ok = await restoreHiddenMessage(id, content);
+    if (!ok) {
+      return res.status(404).json({ success: false, message: '归档留言未找到' });
+    }
+    res.json({ success: true, message: '已成功恢复至主留言列表' });
+  } catch (error: any) {
+    console.error('管理员恢复留言失败:', error);
+    res.status(500).json({ success: false, message: '恢复留言失败' });
+  }
+});
+
+// 管理员删除留言
+app.delete('/api/admin/messages/:id', adminAuth, async (req, res): Promise<any> => {
+  try {
+    const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const id = parseInt(rawId, 10);
+    const source = (req.query.source === 'hidden') ? 'hidden' : 'active';
+    if (isNaN(id)) {
+      return res.status(400).json({ success: false, message: 'ID 无效' });
+    }
+    const ok = await deleteMessageById(id, source);
+    if (!ok) {
+      return res.status(404).json({ success: false, message: '留言未找到' });
+    }
+    res.json({ success: true, message: '删除成功' });
+  } catch (error: any) {
+    console.error('管理员删除留言失败:', error);
+    res.status(500).json({ success: false, message: '删除留言失败' });
   }
 });
 

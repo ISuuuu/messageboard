@@ -207,3 +207,104 @@ export async function createUnreviewedMessage(message: {
   );
   return result.lastID!;
 }
+
+export interface AdminMessage extends Message {
+  source: 'active' | 'hidden';
+}
+
+/**
+ * 管理员获取所有留言列表（合并 messages 表与 hidden_messages 归档表）
+ */
+export async function getAllMessagesForAdmin(): Promise<AdminMessage[]> {
+  return db.all<AdminMessage[]>(
+    `SELECT id, content, originalContent, nickname, color, size,
+            strftime('%Y-%m-%dT%H:%M:%SZ', createdAt) as createdAt,
+            status, rejectReason, 'active' as source
+     FROM messages
+     UNION ALL
+     SELECT id, content, originalContent, nickname, color, size,
+            strftime('%Y-%m-%dT%H:%M:%SZ', createdAt) as createdAt,
+            status, rejectReason, 'hidden' as source
+     FROM hidden_messages
+     ORDER BY createdAt DESC`
+  );
+}
+
+/**
+ * 管理员修改留言内容或状态/原因
+ */
+export async function updateMessageById(
+  id: number,
+  source: 'active' | 'hidden',
+  updates: {
+    content?: string;
+    nickname?: string;
+    status?: 'approved' | 'rejected' | 'pending';
+    rejectReason?: string | null;
+  }
+): Promise<boolean> {
+  const table = source === 'hidden' ? 'hidden_messages' : 'messages';
+  const setClauses: string[] = [];
+  const params: any[] = [];
+
+  if (updates.content !== undefined) {
+    setClauses.push('content = ?');
+    params.push(updates.content);
+  }
+  if (updates.nickname !== undefined) {
+    setClauses.push('nickname = ?');
+    params.push(updates.nickname);
+  }
+  if (updates.status !== undefined) {
+    setClauses.push('status = ?');
+    params.push(updates.status);
+  }
+  if (updates.rejectReason !== undefined) {
+    setClauses.push('rejectReason = ?');
+    const reason = updates.rejectReason && updates.rejectReason.trim() !== '' ? updates.rejectReason.trim() : null;
+    params.push(reason);
+  }
+
+  if (setClauses.length === 0) return false;
+
+  params.push(id);
+  const result = await db.run(
+    `UPDATE ${table} SET ${setClauses.join(', ')} WHERE id = ?`,
+    params
+  );
+  return (result.changes ?? 0) > 0;
+}
+
+/**
+ * 将已归档到 hidden_messages 的留言恢复至 messages 活跃表
+ */
+export async function restoreHiddenMessage(id: number, content?: string): Promise<boolean> {
+  const row = await db.get<Message>(`SELECT * FROM hidden_messages WHERE id = ?`, id);
+  if (!row) return false;
+
+  const finalContent = content !== undefined ? content : (row.originalContent || row.content);
+  await db.run(
+    `INSERT INTO messages (id, content, originalContent, nickname, color, size, createdAt, status, rejectReason)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 'approved', NULL)`,
+    [
+      row.id,
+      finalContent,
+      row.originalContent || row.content,
+      row.nickname,
+      row.color,
+      row.size,
+      row.createdAt
+    ]
+  );
+  await db.run(`DELETE FROM hidden_messages WHERE id = ?`, id);
+  return true;
+}
+
+/**
+ * 管理员删除留言记录
+ */
+export async function deleteMessageById(id: number, source: 'active' | 'hidden'): Promise<boolean> {
+  const table = source === 'hidden' ? 'hidden_messages' : 'messages';
+  const result = await db.run(`DELETE FROM ${table} WHERE id = ?`, id);
+  return (result.changes ?? 0) > 0;
+}

@@ -1,5 +1,9 @@
 <template>
-  <div class="app-container">
+  <!-- 后台管理视图 -->
+  <AdminDashboard v-if="currentView === 'admin'" @exit="exitAdmin" />
+
+  <!-- 前台 3D 星轨留言板 -->
+  <div v-else class="app-container">
     <!-- 背景流光与网格层 -->
     <div class="cyber-grid"></div>
     <div class="glow-orb orb-1"></div>
@@ -63,14 +67,20 @@
       :message="selectedMessage"
       @close="isDetailOpen = false"
     />
+
+    <!-- 底部隐蔽管理后台入口 -->
+    <a href="#/admin" class="admin-entry-link" title="管理控制台">
+      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+    </a>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import ThreeDMessageBall from './components/ThreeDMessageBall.vue';
 import MessageForm from './components/MessageForm.vue';
 import MessageDetail from './components/MessageDetail.vue';
+import AdminDashboard from './components/AdminDashboard.vue';
 
 interface Message {
   id?: string | number;
@@ -171,8 +181,31 @@ const handleSelectMessage = (message: Message) => {
   isDetailOpen.value = true;
 };
 
-onMounted(() => {
+// 视图模式：'home' 前台星球 / 'admin' 后台管理
+const currentView = ref<'home' | 'admin'>('home');
+
+const checkRoute = () => {
+  if (window.location.hash === '#/admin') {
+    currentView.value = 'admin';
+  } else {
+    currentView.value = 'home';
+  }
+};
+
+const exitAdmin = () => {
+  window.location.hash = '';
+  currentView.value = 'home';
   fetchMessages();
+};
+
+onMounted(() => {
+  checkRoute();
+  window.addEventListener('hashchange', checkRoute);
+  fetchMessages();
+});
+
+onUnmounted(() => {
+  window.removeEventListener('hashchange', checkRoute);
 });
 </script>
 
@@ -481,6 +514,27 @@ body {
   margin-top: 2px;
   opacity: 0.8;
   text-shadow: 0 0 8px rgba(0, 240, 255, 0.4);
+}
+
+/* 底部微小管理入口 */
+.admin-entry-link {
+  position: fixed;
+  bottom: 12px;
+  right: 15px;
+  z-index: 50;
+  color: rgba(255, 255, 255, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border-radius: 6px;
+  text-decoration: none;
+  transition: all 0.25s ease;
+}
+.admin-entry-link:hover {
+  color: #00f0ff;
+  background: rgba(0, 240, 255, 0.08);
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.2);
 }
 
 /* 移动端适配调优 */
