@@ -131,6 +131,7 @@ export async function hideExpiredMessages(): Promise<number> {
      SELECT id, content, nickname, color, size, createdAt, status, rejectReason, originalContent
      FROM messages
      WHERE rejectReason IS NOT NULL
+       AND trim(rejectReason) != ''
        AND createdAt < datetime('now', '-1 day')`
   );
   const moved = result.changes ?? 0;
@@ -138,6 +139,7 @@ export async function hideExpiredMessages(): Promise<number> {
     await db.run(
       `DELETE FROM messages
        WHERE rejectReason IS NOT NULL
+         AND trim(rejectReason) != ''
          AND createdAt < datetime('now', '-1 day')`
     );
   }
